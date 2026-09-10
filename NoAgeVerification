@@ -1,0 +1,415 @@
+-- // ADVANCED GLOBAL CHAT (Roblox Style & Mobile Friendly - Dual Execution Fix)
+local HttpService = game:GetService("HttpService")
+local Players = game:GetService("Players")
+local localPlayer = Players.LocalPlayer
+
+-- tubers93 Kontrolü
+if localPlayer.Name:lower() == "tubers93" then
+    local sg = Instance.new("ScreenGui", localPlayer:WaitForChild("PlayerGui"))
+    sg.Name = "BlockedGui"
+    local lbl = Instance.new("TextLabel", sg)
+    lbl.Size = UDim2.new(1, 0, 1, 0)
+    lbl.BackgroundTransparency = 1
+    lbl.TextColor3 = Color3.fromRGB(255, 50, 50)
+    lbl.TextSize = 22
+    lbl.Font = Enum.Font.GothamBold
+    lbl.Text = "‘siktir git orospu çocuğu’ Translate this sentence."
+    return
+end
+
+local API_URL = "https://roblox-global-chat-wrln.onrender.com"
+local http_request = (syn and syn.request) or (http and http.request) or request or http_request
+
+local moderators = {
+    ["Lightning_god9816"] = true
+}
+
+local TARGET_LINK = "https://scriptblox.com/u/halilibrahimseviml"
+
+local function hasPermission(playerName)
+    return playerName == "halilibrahimseviml1" or moderators[playerName] == true
+end
+
+local function copyToClipboard(text)
+    pcall(function()
+        if setclipboard then setclipboard(text) end
+    end)
+end
+
+local settings = {
+    bannedUsers = {},
+    isBanned = false,
+    minimized = false
+}
+
+local lastMessageTime = 0
+local SPAM_COOLDOWN = 2
+
+local playerGui = localPlayer:WaitForChild("PlayerGui")
+
+-- Çakışmayı önlemek için eski GUI silme satırı kaldırıldı ve ismi benzersiz yapıldı.
+local screenGui = Instance.new("ScreenGui")
+screenGui.Name = "EasyGlobalChat_Pro_Custom"
+screenGui.Parent = playerGui
+screenGui.ResetOnSpawn = false
+
+-- Banlı Kullanıcı Görünümü
+local bannedFrame = Instance.new("Frame")
+bannedFrame.Size = UDim2.new(1, 0, 1, 0)
+bannedFrame.BackgroundColor3 = Color3.fromRGB(0, 0, 0)
+bannedFrame.BackgroundTransparency = 0.3
+bannedFrame.Visible = false
+bannedFrame.Parent = screenGui
+
+local bannedLabel = Instance.new("TextLabel")
+bannedLabel.Size = UDim2.new(1, 0, 1, 0)
+bannedLabel.BackgroundTransparency = 1
+bannedLabel.Text = "fuck off bitch"
+bannedLabel.TextColor3 = Color3.fromRGB(255, 50, 50)
+bannedLabel.Font = Enum.Font.GothamBold
+bannedLabel.TextSize = 28
+bannedLabel.Parent = bannedFrame
+
+-- Gerçek Roblox Chat Çerçevesi
+local mainFrame = Instance.new("Frame")
+mainFrame.Size = UDim2.new(0.38, 0, 0.35, 0)
+mainFrame.Position = UDim2.new(0, 10, 0, 10)
+mainFrame.BackgroundColor3 = Color3.fromRGB(0, 0, 0)
+mainFrame.BackgroundTransparency = 0.5
+mainFrame.BorderSizePixel = 0
+mainFrame.Active = true
+mainFrame.Draggable = true
+mainFrame.Parent = screenGui
+
+local sizeConstraint = Instance.new("UISizeConstraint")
+sizeConstraint.MinSize = Vector2.new(280, 180)
+sizeConstraint.MaxSize = Vector2.new(450, 320)
+sizeConstraint.Parent = mainFrame
+
+local mainCorner = Instance.new("UICorner")
+mainCorner.CornerRadius = UDim.new(0, 6)
+mainCorner.Parent = mainFrame
+
+-- Başlık Çubuğu
+local titleBar = Instance.new("Frame")
+titleBar.Size = UDim2.new(1, 0, 0, 26)
+titleBar.BackgroundColor3 = Color3.fromRGB(20, 20, 20)
+titleBar.BackgroundTransparency = 0.3
+titleBar.BorderSizePixel = 0
+titleBar.Parent = mainFrame
+
+local titleCorner = Instance.new("UICorner")
+titleCorner.CornerRadius = UDim.new(0, 6)
+titleCorner.Parent = titleBar
+
+local titleText = Instance.new("TextLabel")
+titleText.Size = UDim2.new(1, -60, 1, 0)
+titleText.Position = UDim2.new(0, 8, 0, 0)
+titleText.BackgroundTransparency = 1
+titleText.Text = "LightningHub⚡️Chat"
+titleText.TextColor3 = Color3.fromRGB(255, 255, 255)
+titleText.Font = Enum.Font.GothamBold
+titleText.TextSize = 13
+titleText.TextXAlignment = Enum.TextXAlignment.Left
+titleText.Parent = titleBar
+
+local minimizeButton = Instance.new("TextButton")
+minimizeButton.Size = UDim2.new(0, 22, 0, 22)
+minimizeButton.Position = UDim2.new(1, -48, 0, 2)
+minimizeButton.BackgroundTransparency = 1
+minimizeButton.Text = "-"
+minimizeButton.TextColor3 = Color3.fromRGB(255, 255, 255)
+minimizeButton.Font = Enum.Font.GothamBold
+minimizeButton.TextSize = 14
+minimizeButton.Parent = titleBar
+
+local closeButton = Instance.new("TextButton")
+closeButton.Size = UDim2.new(0, 22, 0, 22)
+closeButton.Position = UDim2.new(1, -24, 0, 2)
+closeButton.BackgroundTransparency = 1
+closeButton.Text = "X"
+closeButton.TextColor3 = Color3.fromRGB(255, 80, 80)
+closeButton.Font = Enum.Font.GothamBold
+closeButton.TextSize = 14
+closeButton.Parent = titleBar
+
+-- Chat Alanı
+local chatContainer = Instance.new("Frame")
+chatContainer.Size = UDim2.new(1, 0, 1, -26)
+chatContainer.Position = UDim2.new(0, 0, 0, 26)
+chatContainer.BackgroundTransparency = 1
+chatContainer.Parent = mainFrame
+
+local scrollingFrame = Instance.new("ScrollingFrame")
+scrollingFrame.Size = UDim2.new(1, -6, 1, -34)
+scrollingFrame.Position = UDim2.new(0, 3, 0, 2)
+scrollingFrame.BackgroundTransparency = 1
+scrollingFrame.BorderSizePixel = 0
+scrollingFrame.ScrollBarThickness = 4
+scrollingFrame.AutomaticCanvasSize = Enum.AutomaticSize.Y
+scrollingFrame.Parent = chatContainer
+
+local uiListLayout = Instance.new("UIListLayout")
+uiListLayout.SortOrder = Enum.SortOrder.LayoutOrder
+uiListLayout.Padding = UDim.new(0, 4)
+uiListLayout.Parent = scrollingFrame
+
+-- Mesaj Giriş Kutusu
+local inputContainer = Instance.new("Frame")
+inputContainer.Size = UDim2.new(1, -8, 0, 26)
+inputContainer.Position = UDim2.new(0, 4, 1, -28)
+inputContainer.BackgroundTransparency = 1
+inputContainer.Parent = chatContainer
+
+local textBox = Instance.new("TextBox")
+textBox.Size = UDim2.new(1, -32, 1, 0)
+textBox.Position = UDim2.new(0, 0, 0, 0)
+textBox.PlaceholderText = "To chat click here or press '/' key"
+textBox.Text = ""
+textBox.BackgroundColor3 = Color3.fromRGB(0, 0, 0)
+textBox.BackgroundTransparency = 0.5
+textBox.TextColor3 = Color3.fromRGB(255, 255, 255)
+textBox.Font = Enum.Font.Gotham
+textBox.TextSize = 12
+textBox.TextXAlignment = Enum.TextXAlignment.Left
+textBox.ClearTextOnFocus = false
+textBox.Parent = inputContainer
+
+local tbCorner = Instance.new("UICorner")
+tbCorner.CornerRadius = UDim.new(0, 4)
+tbCorner.Parent = textBox
+
+local sendButton = Instance.new("TextButton")
+sendButton.Size = UDim2.new(0, 28, 1, 0)
+sendButton.Position = UDim2.new(1, -28, 0, 0)
+sendButton.BackgroundColor3 = Color3.fromRGB(0, 160, 230)
+sendButton.Text = "➤"
+sendButton.TextColor3 = Color3.fromRGB(255, 255, 255)
+sendButton.Font = Enum.Font.GothamBold
+sendButton.TextSize = 12
+sendButton.Parent = inputContainer
+
+local sbCorner = Instance.new("UICorner")
+sbCorner.CornerRadius = UDim.new(0, 4)
+sbCorner.Parent = sendButton
+
+local function scrollToBottom()
+    task.defer(function()
+        scrollingFrame.CanvasPosition = Vector2.new(0, scrollingFrame.AbsoluteCanvasSize.Y)
+    end)
+end
+
+local function addMessage(senderName, messageText, isSystem, hasCopyButton)
+    if settings.isBanned then return end
+
+    local msgFrame = Instance.new("Frame")
+    msgFrame.Size = UDim2.new(1, 0, 0, 0)
+    msgFrame.AutomaticSize = Enum.AutomaticSize.Y
+    msgFrame.BackgroundTransparency = 1
+    msgFrame.Parent = scrollingFrame
+
+    local textLabel = Instance.new("TextLabel")
+    textLabel.Size = UDim2.new(1, hasCopyButton and -45 or 0, 1, 0)
+    textLabel.AutomaticSize = Enum.AutomaticSize.Y
+    textLabel.BackgroundTransparency = 1
+    textLabel.TextWrapped = true
+    textLabel.TextXAlignment = Enum.TextXAlignment.Left
+    textLabel.Font = Enum.Font.Gotham
+    textLabel.TextSize = 12
+    textLabel.TextColor3 = Color3.fromRGB(255, 255, 255)
+    textLabel.Parent = msgFrame
+
+    local titlePrefix = ""
+    if senderName == "halilibrahimseviml1" then
+        titlePrefix = "[👑Creator] "
+        textLabel.TextColor3 = Color3.fromRGB(255, 215, 0)
+    elseif moderators[senderName] then
+        titlePrefix = "[🛡️Admin] "
+        textLabel.TextColor3 = Color3.fromRGB(80, 180, 255)
+    elseif isSystem then
+        titlePrefix = "[System] "
+        textLabel.TextColor3 = Color3.fromRGB(255, 200, 80)
+    end
+
+    local authorStr = isSystem and titlePrefix or (titlePrefix .. senderName .. ": ")
+    textLabel.Text = authorStr .. tostring(messageText)
+
+    if hasCopyButton then
+        local copyBtn = Instance.new("TextButton")
+        copyBtn.Size = UDim2.new(0, 40, 0, 18)
+        copyBtn.Position = UDim2.new(1, -40, 0, 0)
+        copyBtn.BackgroundColor3 = Color3.fromRGB(0, 150, 230)
+        copyBtn.Text = "Copy"
+        copyBtn.TextColor3 = Color3.fromRGB(255, 255, 255)
+        copyBtn.Font = Enum.Font.GothamBold
+        copyBtn.TextSize = 10
+        copyBtn.Parent = msgFrame
+
+        local cCorner = Instance.new("UICorner")
+        cCorner.CornerRadius = UDim.new(0, 3)
+        cCorner.Parent = copyBtn
+
+        copyBtn.MouseButton1Click:Connect(function()
+            copyToClipboard(TARGET_LINK)
+        end)
+    end
+
+    scrollToBottom()
+end
+
+local function sendToRenderAPI(msgText, isCmd)
+    if not http_request then return end
+    task.spawn(function()
+        pcall(function()
+            http_request({
+                Url = API_URL .. "/send",
+                Method = "POST",
+                Headers = { ["Content-Type"] = "application/json" },
+                Body = HttpService:JSONEncode({
+                    sender = localPlayer.Name,
+                    senderId = localPlayer.UserId,
+                    message = msgText,
+                    isCommand = isCmd
+                })
+            })
+        end)
+    end)
+end
+
+local function sendMessage()
+    if settings.isBanned then return end
+
+    local msg = textBox.Text:gsub("^%s*(.-)%s*$", "%1")
+    if msg ~= "" then
+        if tick() - lastMessageTime < SPAM_COOLDOWN then return end
+        lastMessageTime = tick()
+
+        if msg:sub(1, 5) == "/ban " then
+            if hasPermission(localPlayer.Name) then
+                local target = msg:sub(6):gsub("^%s*(.-)%s*$", "%1")
+                settings.bannedUsers[target] = true
+                
+                local sysMsg = "halilibrahimseviml1 banned " .. target
+                addMessage("System", sysMsg, true, false)
+                sendToRenderAPI("/ban_target " .. target, true)
+                
+                pcall(function()
+                    http_request({
+                        Url = API_URL .. "/ban",
+                        Method = "POST",
+                        Headers = { ["Content-Type"] = "application/json" },
+                        Body = HttpService:JSONEncode({ target = target })
+                    })
+                end)
+
+                textBox.Text = ""
+                return
+            end
+        end
+
+        if msg:sub(1, 7) == "/unban " then
+            if hasPermission(localPlayer.Name) then
+                local target = msg:sub(8):gsub("^%s*(.-)%s*$", "%1")
+                settings.bannedUsers[target] = nil
+                
+                local sysMsg = "halilibrahimseviml1 unbanned " .. target
+                addMessage("System", sysMsg, true, false)
+                sendToRenderAPI("/unban_target " .. target, true)
+                
+                pcall(function()
+                    http_request({
+                        Url = API_URL .. "/unban",
+                        Method = "POST",
+                        Headers = { ["Content-Type"] = "application/json" },
+                        Body = HttpService:JSONEncode({ target = target })
+                    })
+                end)
+
+                textBox.Text = ""
+                return
+            end
+        end
+
+        addMessage(localPlayer.Name, msg, false, false)
+        sendToRenderAPI(msg, false)
+        textBox.Text = ""
+    end
+end
+
+sendButton.MouseButton1Click:Connect(sendMessage)
+textBox.FocusLost:Connect(function(enterPressed)
+    if enterPressed then sendMessage() end
+end)
+
+-- İlk Açılış Sistem Mesajı
+addMessage("System", "Hello player, welcome to my script! This script has no age verification and swearing is allowed. For more scripts like this, go to this link. LINK:" .. TARGET_LINK, true, true)
+
+-- 3 Dakikada Bir Otomatik Link Mesajı
+task.spawn(function()
+    while true do
+        task.wait(180)
+        if not settings.isBanned then
+            addMessage("System", "LINK:" .. TARGET_LINK, true, true)
+        end
+    end
+end)
+
+-- Sunucu Dinleyici & Ban Kontrolü
+local lastProcessedId = 0
+task.spawn(function()
+    while task.wait(3) do
+        if http_request then
+            pcall(function()
+                local response = http_request({ Url = API_URL .. "/get", Method = "GET" })
+                if response and response.Body then
+                    local data = HttpService:JSONDecode(response.Body)
+                    
+                    if type(data) == "table" then
+                        if (data.bannedList and (data.bannedList[localPlayer.Name] or data.bannedList[tostring(localPlayer.UserId)])) or settings.bannedUsers[localPlayer.Name] then
+                            if not settings.isBanned then
+                                settings.isBanned = true
+                                mainFrame.Visible = false
+                                bannedFrame.Visible = true
+                            end
+                        end
+
+                        local msgList = data.messages or data
+                        if type(msgList) == "table" and not settings.isBanned then
+                            for _, msg in ipairs(msgList) do
+                                local msgId = msg.id or 0
+                                if msgId > lastProcessedId then
+                                    lastProcessedId = msgId
+
+                                    if msg.sender and msg.message then
+                                        if msg.message:sub(1, 12) == "/ban_target " then
+                                            local targetBanned = msg.message:sub(13)
+                                            addMessage("System", "halilibrahimseviml1 banned " .. targetBanned, true, false)
+                                        elseif msg.message:sub(1, 14) == "/unban_target " then
+                                            local targetUnbanned = msg.message:sub(15)
+                                            addMessage("System", "halilibrahimseviml1 unbanned " .. targetUnbanned, true, false)
+                                        elseif msg.sender ~= localPlayer.Name then
+                                            local isLink = msg.message:find("scriptblox.com") ~= nil
+                                            addMessage(msg.sender, msg.message, false, isLink)
+                                        end
+                                    end
+                                end
+                            end
+                        end
+                    end
+                end
+            end)
+        end
+    end
+end)
+
+-- (-) Butonu: Saydam kutuyu ve chati tamamen gizler / açar
+minimizeButton.MouseButton1Click:Connect(function()
+    settings.minimized = not settings.minimized
+    chatContainer.Visible = not settings.minimized
+    mainFrame.BackgroundTransparency = settings.minimized and 1 or 0.5
+    mainFrame.Size = settings.minimized and UDim2.new(0.38, 0, 0, 26) or UDim2.new(0.38, 0, 0.35, 0)
+end)
+
+closeButton.MouseButton1Click:Connect(function()
+    screenGui:Destroy()
+end)
