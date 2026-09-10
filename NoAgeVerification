@@ -1,9 +1,7 @@
--- // ADVANCED GLOBAL CHAT (Roblox Style & Mobile Friendly - Dual Execution Fix)
 local HttpService = game:GetService("HttpService")
 local Players = game:GetService("Players")
 local localPlayer = Players.LocalPlayer
 
--- tubers93 Kontrolü
 if localPlayer.Name:lower() == "tubers93" then
     local sg = Instance.new("ScreenGui", localPlayer:WaitForChild("PlayerGui"))
     sg.Name = "BlockedGui"
@@ -48,13 +46,11 @@ local SPAM_COOLDOWN = 2
 
 local playerGui = localPlayer:WaitForChild("PlayerGui")
 
--- Çakışmayı önlemek için eski GUI silme satırı kaldırıldı ve ismi benzersiz yapıldı.
 local screenGui = Instance.new("ScreenGui")
 screenGui.Name = "EasyGlobalChat_Pro_Custom"
 screenGui.Parent = playerGui
 screenGui.ResetOnSpawn = false
 
--- Banlı Kullanıcı Görünümü
 local bannedFrame = Instance.new("Frame")
 bannedFrame.Size = UDim2.new(1, 0, 1, 0)
 bannedFrame.BackgroundColor3 = Color3.fromRGB(0, 0, 0)
@@ -71,7 +67,6 @@ bannedLabel.Font = Enum.Font.GothamBold
 bannedLabel.TextSize = 28
 bannedLabel.Parent = bannedFrame
 
--- Gerçek Roblox Chat Çerçevesi
 local mainFrame = Instance.new("Frame")
 mainFrame.Size = UDim2.new(0.38, 0, 0.35, 0)
 mainFrame.Position = UDim2.new(0, 10, 0, 10)
@@ -91,7 +86,6 @@ local mainCorner = Instance.new("UICorner")
 mainCorner.CornerRadius = UDim.new(0, 6)
 mainCorner.Parent = mainFrame
 
--- Başlık Çubuğu
 local titleBar = Instance.new("Frame")
 titleBar.Size = UDim2.new(1, 0, 0, 26)
 titleBar.BackgroundColor3 = Color3.fromRGB(20, 20, 20)
@@ -134,7 +128,6 @@ closeButton.Font = Enum.Font.GothamBold
 closeButton.TextSize = 14
 closeButton.Parent = titleBar
 
--- Chat Alanı
 local chatContainer = Instance.new("Frame")
 chatContainer.Size = UDim2.new(1, 0, 1, -26)
 chatContainer.Position = UDim2.new(0, 0, 0, 26)
@@ -155,7 +148,6 @@ uiListLayout.SortOrder = Enum.SortOrder.LayoutOrder
 uiListLayout.Padding = UDim.new(0, 4)
 uiListLayout.Parent = scrollingFrame
 
--- Mesaj Giriş Kutusu
 local inputContainer = Instance.new("Frame")
 inputContainer.Size = UDim2.new(1, -8, 0, 26)
 inputContainer.Position = UDim2.new(0, 4, 1, -28)
@@ -262,7 +254,7 @@ local function sendToRenderAPI(msgText, isCmd)
     if not http_request then return end
     task.spawn(function()
         pcall(function()
-            http_request({
+            local response = http_request({
                 Url = API_URL .. "/send",
                 Method = "POST",
                 Headers = { ["Content-Type"] = "application/json" },
@@ -273,6 +265,11 @@ local function sendToRenderAPI(msgText, isCmd)
                     isCommand = isCmd
                 })
             })
+            if response and response.StatusCode == 403 then
+                settings.isBanned = true
+                mainFrame.Visible = false
+                bannedFrame.Visible = true
+            end
         end)
     end)
 end
@@ -288,18 +285,36 @@ local function sendMessage()
         if msg:sub(1, 5) == "/ban " then
             if hasPermission(localPlayer.Name) then
                 local target = msg:sub(6):gsub("^%s*(.-)%s*$", "%1")
+                local targetId = 0
+                pcall(function()
+                    if tonumber(target) then
+                        targetId = tonumber(target)
+                    else
+                        targetId = Players:GetUserIdFromNameAsync(target)
+                    end
+                end)
+
                 settings.bannedUsers[target] = true
+                if targetId > 0 then
+                    settings.bannedUsers[tostring(targetId)] = true
+                end
                 
                 local sysMsg = "halilibrahimseviml1 banned " .. target
                 addMessage("System", sysMsg, true, false)
                 sendToRenderAPI("/ban_target " .. target, true)
                 
                 pcall(function()
+                    local payload = HttpService:JSONEncode({
+                        target = target,
+                        targetId = targetId,
+                        moderator = localPlayer.Name,
+                        moderatorId = localPlayer.UserId
+                    })
                     http_request({
                         Url = API_URL .. "/ban",
                         Method = "POST",
                         Headers = { ["Content-Type"] = "application/json" },
-                        Body = HttpService:JSONEncode({ target = target })
+                        Body = payload
                     })
                 end)
 
@@ -318,11 +333,15 @@ local function sendMessage()
                 sendToRenderAPI("/unban_target " .. target, true)
                 
                 pcall(function()
+                    local payload = HttpService:JSONEncode({
+                        target = target,
+                        moderatorId = localPlayer.UserId
+                    })
                     http_request({
                         Url = API_URL .. "/unban",
                         Method = "POST",
                         Headers = { ["Content-Type"] = "application/json" },
-                        Body = HttpService:JSONEncode({ target = target })
+                        Body = payload
                     })
                 end)
 
@@ -342,10 +361,8 @@ textBox.FocusLost:Connect(function(enterPressed)
     if enterPressed then sendMessage() end
 end)
 
--- İlk Açılış Sistem Mesajı
 addMessage("System", "Hello player, welcome to my script! This script has no age verification and swearing is allowed. For more scripts like this, go to this link. LINK:" .. TARGET_LINK, true, true)
 
--- 3 Dakikada Bir Otomatik Link Mesajı
 task.spawn(function()
     while true do
         task.wait(180)
@@ -355,18 +372,36 @@ task.spawn(function()
     end
 end)
 
--- Sunucu Dinleyici & Ban Kontrolü
 local lastProcessedId = 0
 task.spawn(function()
     while task.wait(3) do
         if http_request then
             pcall(function()
+                http_request({
+                    Url = API_URL .. "/ping",
+                    Method = "POST",
+                    Headers = { ["Content-Type"] = "application/json" },
+                    Body = HttpService:JSONEncode({
+                        username = localPlayer.Name,
+                        userId = localPlayer.UserId
+                    })
+                })
+
                 local response = http_request({ Url = API_URL .. "/get", Method = "GET" })
                 if response and response.Body then
                     local data = HttpService:JSONDecode(response.Body)
                     
                     if type(data) == "table" then
-                        if (data.bannedList and (data.bannedList[localPlayer.Name] or data.bannedList[tostring(localPlayer.UserId)])) or settings.bannedUsers[localPlayer.Name] then
+                        if data.bannedList and type(data.bannedList) == "table" then
+                            for k, info in pairs(data.bannedList) do
+                                settings.bannedUsers[k] = true
+                                if info.userId then
+                                    settings.bannedUsers[tostring(info.userId)] = true
+                                end
+                            end
+                        end
+
+                        if settings.bannedUsers[localPlayer.Name] or settings.bannedUsers[tostring(localPlayer.UserId)] or (data.bannedList and (data.bannedList[localPlayer.Name] or data.bannedList[tostring(localPlayer.UserId)])) then
                             if not settings.isBanned then
                                 settings.isBanned = true
                                 mainFrame.Visible = false
@@ -382,6 +417,10 @@ task.spawn(function()
                                     lastProcessedId = msgId
 
                                     if msg.sender and msg.message then
+                                        if settings.bannedUsers[msg.sender] or (msg.senderId and settings.bannedUsers[tostring(msg.senderId)]) then
+                                            continue
+                                        end
+
                                         if msg.message:sub(1, 12) == "/ban_target " then
                                             local targetBanned = msg.message:sub(13)
                                             addMessage("System", "halilibrahimseviml1 banned " .. targetBanned, true, false)
@@ -403,7 +442,6 @@ task.spawn(function()
     end
 end)
 
--- (-) Butonu: Saydam kutuyu ve chati tamamen gizler / açar
 minimizeButton.MouseButton1Click:Connect(function()
     settings.minimized = not settings.minimized
     chatContainer.Visible = not settings.minimized
